@@ -3,9 +3,13 @@
 import argparse
 import os
 import json
+import string
 
 cli_dir = os.path.dirname(__file__)
 json_path = os.path.join(cli_dir, "../data/movies.json")
+
+def clean_text(text: str) -> str:
+    return text.translate(str.maketrans("", "", string.punctuation)).lower()
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Keyword Search CLI")
@@ -24,11 +28,11 @@ def main() -> None:
                 
             movies = data["movies"]
 
-            query_lower = args.query.lower()
+            query_clean = clean_text(args.query)
             results = [
                 movie["title"]
                 for movie in movies
-                if query_lower in movie["title"].lower()
+                if query_clean in clean_text(movie["title"])
             ]
 
             if results:
