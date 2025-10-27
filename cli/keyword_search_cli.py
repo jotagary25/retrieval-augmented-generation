@@ -8,6 +8,10 @@ import string
 cli_dir = os.path.dirname(__file__)
 json_path = os.path.join(cli_dir, "../data/movies.json")
 
+def tokenize(text: str) -> list[str]:
+    cleaned = clean_text(text)
+    return cleaned.split()
+
 def clean_text(text: str) -> str:
     return text.translate(str.maketrans("", "", string.punctuation)).lower()
 
@@ -28,12 +32,13 @@ def main() -> None:
                 
             movies = data["movies"]
 
-            query_clean = clean_text(args.query)
-            results = [
-                movie["title"]
-                for movie in movies
-                if query_clean in clean_text(movie["title"])
-            ]
+            query_text = tokenize(args.query)
+            results = []
+    
+            for movie in movies:
+                titles = tokenize(movie["title"])
+                if any(any(q_token in t_token for t_token in titles) for q_token in query_text):
+                    results.append(movie["title"])
 
             if results:
                 for index, title in enumerate(results, start=1):
