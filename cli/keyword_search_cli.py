@@ -5,8 +5,26 @@ import os
 import json
 import string
 
+from nltk.stem import PorterStemmer
+
 cli_dir = os.path.dirname(__file__)
 json_path = os.path.join(cli_dir, "../data/movies.json")
+stopwords_path = os.path.join(cli_dir, "../data/stopwords.txt")
+_STEMMER = PorterStemmer()
+
+def stemming(text: str, stopwords_path: str) -> list[str]:
+    tokens = without_stopwords(text, stopwords_path)
+    stemmed_tokens = [_STEMMER.stem(token) for token in tokens]
+    return stemmed_tokens
+
+def without_stopwords(text: str, stopwords_file: str) -> list[str]:
+    tokens = tokenize(text)
+
+    with open(stopwords_file, "r", encoding="utf-8") as file:
+        stopwords = {line.strip().lower() for line in file if line.strip()}
+
+    filtered_tokens = [t for t in tokens if t not in stopwords]
+    return filtered_tokens
 
 def tokenize(text: str) -> list[str]:
     cleaned = clean_text(text)
@@ -26,17 +44,16 @@ def main() -> None:
 
     match args.command:
         case "search":
-            
             with open(json_path, "r", encoding="utf-8") as file:
                 data = json.load(file)
                 
             movies = data["movies"]
-
-            query_text = tokenize(args.query)
+            
+            query_text = stemming(args.query, stopwords_path)
             results = []
     
             for movie in movies:
-                titles = tokenize(movie["title"])
+                titles = stemming(movie["title"], stopwords_path)
                 if any(any(q_token in t_token for t_token in titles) for q_token in query_text):
                     results.append(movie["title"])
 
