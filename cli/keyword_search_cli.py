@@ -6,10 +6,17 @@ import json
 import string
 
 from nltk.stem import PorterStemmer
+from inverted_index import inverted_index
 
 cli_dir = os.path.dirname(__file__)
 json_path = os.path.join(cli_dir, "../data/movies.json")
 stopwords_path = os.path.join(cli_dir, "../data/stopwords.txt")
+cache_dir = os.path.join(cli_dir, "../cache")
+
+with open(json_path, "r", encoding="utf-8") as file:
+    data = json.load(file)
+movies = data["movies"]
+
 _STEMMER = PorterStemmer()
 
 def stemming(text: str, stopwords_path: str) -> list[str]:
@@ -38,17 +45,28 @@ def main() -> None:
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
     search_parser = subparsers.add_parser("search", help="Search movies using BM25")
+    build_parser = subparsers.add_parser("build", help="Build and Cache inverted index")
+    
     search_parser.add_argument("query", type=str, help="Search query")
-
+    
     args = parser.parse_args()
 
     match args.command:
-        case "search":
-            with open(json_path, "r", encoding="utf-8") as file:
-                data = json.load(file)
-                
-            movies = data["movies"]
+        case "build":
+            def _tok(text: str):
+                return stemming(text, stopwords_path)
+
+            idx = inverted_index(tokenize_fn=_tok)
+            idx.build(movies)
+            idx.save(cache_dir)
+
+            docs = idx.get_documents("merida")
+            if docs:
+                print(f"First ID for 'merida': {docs[0]}")
+            else:
+                print(f"No documents found for 'merida'.")
             
+        case "search":
             query_text = stemming(args.query, stopwords_path)
             results = []
     
