@@ -6,12 +6,14 @@ import math
 import json
 
 from utils import stemming
-from inverted_index import inverted_index
+from inverted_index import InvertedIndex
 
 cli_dir = os.path.dirname(__file__)
 json_path = os.path.join(cli_dir, "../data/movies.json")
 stopwords_path = os.path.join(cli_dir, "../data/stopwords.txt")
 cache_dir = os.path.join(cli_dir, "../cache")
+BM25_K1 = 1.5
+BM25_B = 0.75
 
 with open(json_path, "r", encoding="utf-8") as file:
     data = json.load(file)
@@ -24,11 +26,14 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Keyword Search CLI")
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
-    search_parser = subparsers.add_parser("search", help="Search movies using BM25")
+    search_parser = subparsers.add_parser("search", help="Search movies")
     build_parser = subparsers.add_parser("build", help="Build and Cache inverted index")
     tf_parser = subparsers.add_parser("tf", help="show term frequency for a document")
     idf_parser = subparsers.add_parser("idf", help="show inverse document frequency for a term")
     tfidf_parser = subparsers.add_parser("tfidf", help="show TF x IDF for a document")
+    bm25idf_parser = subparsers.add_parser("bm25idf", help="Get BM25 IDF score for a given term")
+    bm25tf_parser = subparsers.add_parser("bm25tf", help="Get BM25 TF score for a given Document ID and term")
+    bm25search_parser = subparsers.add_parser("bm25search", help="Search movies using full BM25 scoring")
 
     search_parser.add_argument("query", type=str, help="Search query")
     tf_parser.add_argument("doc_id", type=int, help="Document ID")
@@ -36,20 +41,79 @@ def main() -> None:
     idf_parser.add_argument("term", type=str, help="Term to compute IDF for")
     tfidf_parser.add_argument("doc_id", type=int, help="Document ID")
     tfidf_parser.add_argument("term", type=str, help="Term to compute TF x IDF for")
+    bm25idf_parser.add_argument("term", type=str, help="Term to get BM25 IDF score for")
+    bm25tf_parser.add_argument("doc_id", type=int, help="Document ID")
+    bm25tf_parser.add_argument("term", type=str, help="Term to get BM25 TF score for")
+    bm25tf_parser.add_argument("k1", type=float, nargs='?', default=BM25_K1, help="tunable BM25 k1 parameter")
+    bm25tf_parser.add_argument("b", type=float, nargs='?', default=BM25_B, help="tunable BM25 b parameter")
+    bm25search_parser.add_argument("query", type=str, help="Search query")
+    bm25search_parser.add_argument("k1", type=int, nargs='?', default=BM25_K1, help="tunable BM25 k parameter")
+    bm25search_parser.add_argument("b", type=float, nargs='?', default=BM25_B, help="tunable BM25 b parameter")
+    bm25search_parser.add_argument("--limit", "-1", type=int, nargs='?', default=5, help="Number of results to return")
 
     args = parser.parse_args()
 
     match args.command:
-        case "tfidf":
-            idx = inverted_index(tokenize_fn = tok)
+        case "bm25search":
+            idx = InvertedIndex(tokenize_fn = tok)
             try:
                 idx.load(cache_dir)
-            except ValueError as e:
+            except FileNotFoundError as e:
+                print(f"Error: {e}")
+                return
+
+            results = idx.bm25_search(args.query, args.k1, args.b, args.limit)
+            if not results:
+                print("No results found")
+                return
+
+            for i, (doc_id, score) in enumerate(results, start=1):
+                movie = idx.docmap.get(doc_id)
+                title = movie["title"] if movie else f"Doc {doc_id}"
+                print(f"{i}. {title} (ID: {doc_id}) - {score:.2f}")
+
+        case "bm25tf":
+            idx = InvertedIndex(tokenize_fn = tok)
+            try:
+                idx.load(cache_dir)
+            except FileNotFoundError as e:
                 print(f"Error: {e}")
                 return
 
             try:
-                tf = idx.get_frequencie(args.doc_id, args.term)
+                bm25tf = idx.get_bm25_tf(args.doc_id, args.term, args.k1, args.b)
+            except ValueError as e:
+                print(f"Error: {e}")
+                return
+
+            print(f"BM25 TF score for '{args.term}' in doc '{args.doc_id}': {bm25tf:.2f}")
+
+        case "bm25idf":
+            idx = InvertedIndex(tokenize_fn = tok)
+            try:
+                idx.load(cache_dir)
+            except FileNotFoundError as e:
+                print(f"Error: {e}")
+                return
+
+            try:
+                bm25idf = idx.get_bm25_idf(args.term)
+            except ValueError as e:
+                print(f"Error: {e}")
+                return
+
+            print(f"BM25 IDF score for {args.term}: {bm25idf:.2f}")
+
+        case "tfidf":
+            idx = InvertedIndex(tokenize_fn = tok)
+            try:
+                idx.load(cache_dir)
+            except FileNotFoundError as e:
+                print(f"Error: {e}")
+                return
+
+            try:
+                tf = idx.get_frequency(args.doc_id, args.term)
             except ValueError as e:
                 print(f"Error: {e}")
                 return
@@ -68,7 +132,7 @@ def main() -> None:
             print(f"TF-IDF score for '{args.term}' in document '{args.doc_id}': {score:.2f}")
 
         case "idf":
-            idx = inverted_index(tokenize_fn = tok)
+            idx = InvertedIndex(tokenize_fn = tok)
             try:
                 idx.load(cache_dir)
             except FileNotFoundError:
@@ -81,17 +145,17 @@ def main() -> None:
                 return
             term_tok = tokens[0]
 
-            N = len(idx.docmap)
-            DF = len(idx.index.get(term_tok, set()))
+            n = len(idx.docmap)
+            df = len(idx.index.get(term_tok, set()))
 
-            if DF == 0 or N == 0:
+            if df == 0 or n == 0:
                 idf = 0.0
             else:
-                idf = math.log((N + 1) / (DF + 1))
+                idf = math.log((n + 1) / (df + 1))
             print(f"{idf:.2f}")
 
         case "tf":
-            idx = inverted_index(tokenize_fn = tok)
+            idx = InvertedIndex(tokenize_fn = tok)
             try:
                 idx.load(cache_dir)
             except FileNotFoundError:
@@ -99,7 +163,7 @@ def main() -> None:
                 return
 
             try:
-                tf = idx.get_frequencie(args.doc_id, args.term)
+                tf = idx.get_frequency(args.doc_id, args.term)
             except ValueError as e:
                 print(f"Error: {e}")
                 return
@@ -110,16 +174,16 @@ def main() -> None:
             def _tok(text: str):
                 return stemming(text, stopwords_path)
 
-            idx = inverted_index(tokenize_fn=_tok)
+            idx = InvertedIndex(tokenize_fn=_tok)
             idx.build(movies)
             idx.save(cache_dir)
 
         case "search":
-            idx = inverted_index(tokenize_fn = tok)
+            idx = InvertedIndex(tokenize_fn = tok)
             try:
                 idx.load(cache_dir)
             except FileNotFoundError:
-                print("Error: no hay indice en cache. Ejecuta uv run cli/keyword_search.py build")
+                print("Error: no hay indice en cache. Ejecuta uv run cli/keyword_search_cli.py build")
                 return
 
             query_tokens = stemming(args.query, stopwords_path)
