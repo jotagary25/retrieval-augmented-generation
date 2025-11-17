@@ -44,6 +44,28 @@ class SemanticSearch:
                 return self.embeddings
         return self.build_embeddings(documents)
 
+    def search(self, query, limit):
+        if self.embeddings is None or self.documents is None:
+            raise ValueError("No embeddings loaded. Call `load_or_create_embeddings` first.")
+
+        query_embedding = self.generate_embedding(query)
+        similarities = []
+        for idx, doc_embedding in enumerate(self.embeddings):
+            score = cosine_similarity(query_embedding, doc_embedding)
+            similarities.append((idx, score))
+
+        sorted_similarities = sorted(similarities, key=lambda x: x[1], reverse=True)[:limit]
+        results = []
+        for similar in sorted_similarities:
+            results.append(
+                {
+                    "score": similar[1],
+                    "title": self.documents[similar[0]]["title"],
+                    "description": self.documents[similar[0]]["description"]
+                }
+            )
+        return results
+
 def verify_model():
     semantic = SemanticSearch()
     print(f"Model loaded: {semantic.model}")
@@ -70,3 +92,21 @@ def embed_query_text(query):
     print(f"Query: {query}")
     print(f"First 5 dimensions: {embedding[:5]}")
     print(f"Shape: {embedding.shape[0]}")
+
+def cosine_similarity(vec1, vec2):
+    dot_product = np.dot(vec1, vec2)
+    norm1 = np.linalg.norm(vec1)
+    norm2 = np.linalg.norm(vec2)
+
+    if norm1 == 0 or norm2 == 0:
+        return 0.0
+
+    return dot_product / (norm1 * norm2)
+
+def load_and_search(query, limit):
+    semantic = SemanticSearch()
+    with open('data/movies.json', 'rb') as f:
+        documents = json.load(f)['movies']
+        embeddings = semantic.load_or_create_embeddings(documents)
+
+    return semantic.search(query, limit)
