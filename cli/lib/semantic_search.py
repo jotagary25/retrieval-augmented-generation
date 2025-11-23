@@ -126,9 +126,14 @@ class ChunkedSemanticSearch(SemanticSearch):
         return self.chunk_embeddings
 
     def _chunk_text(self, text, chunk_size=4, overlap=1):
+        text = text.strip()
+        if not text:
+            return []
         regex = r"(?<=[.!?])\s+"
         sentences = re.split(regex, text)
-        sentences = [s for s in sentences if s.strip()]
+        sentences = [s.strip() for s in sentences if s.strip()]
+        if len(sentences) == 1:
+            return [sentences[0]]
         chunks = []
 
         jump = chunk_size - overlap
@@ -137,8 +142,52 @@ class ChunkedSemanticSearch(SemanticSearch):
             if len(chunk_sentences) < 2:
                 continue
             chunk = " ".join(chunk_sentences)
-            chunks.append(chunk)
+            if chunk.strip():
+                chunks.append(chunk)
         return chunks
+
+    def search_chunks(self, query, limit=10):
+        query_embedding = self.generate_embedding(query)
+        scores_list = []
+
+        for idx, embedding in enumerate(self.chunk_embeddings):
+            score = cosine_similarity(query_embedding, embedding)
+            chunk_data = {
+                "chunk_idx": self.chunk_metadata[idx]["chunk_idx"],
+                "movie_idx": self.chunk_metadata[idx]["movie_idx"],
+                "score": score,
+                "global_idx": idx,
+            }
+            scores_list.append(chunk_data)
+
+        movie_scores = {}
+        for chunk_data in scores_list:
+            movie_idx = chunk_data["movie_idx"]
+            score = chunk_data["score"]
+            if movie_idx not in movie_scores:
+                movie_scores[movie_idx] = chunk_data
+            elif score > movie_scores[movie_idx]["score"]:
+                movie_scores[movie_idx] = chunk_data
+
+        sorted_movies = sorted(
+            movie_scores.values(), key=lambda x: x["score"], reverse=True
+        )
+
+        top_results = sorted_movies[:limit]
+        results = []
+        for item in top_results:
+            movie_idx = item["movie_idx"]
+            score = item["score"]
+            results.append(
+                {
+                    "id": movie_idx,
+                    "title": self.documents[movie_idx]["title"],
+                    "document": self.documents[movie_idx]["description"][:100],
+                    "score": round(score, 4),
+                    "metadata": self.chunk_metadata[item["global_idx"]],
+                }
+            )
+        return results
 
 
 def verify_model():
@@ -197,6 +246,17 @@ def load_and_search(query, limit):
     semantic = SemanticSearch()
     with open("data/movies.json", "rb") as f:
         documents = json.load(f)["movies"]
-        embeddings = semantic.load_or_create_embeddings(documents)
+        semantic.load_or_create_embeddings(documents)
 
     return semantic.search(query, limit)
+
+
+def load_and_search_chunked(query, limit):
+    chunked = ChunkedSemanticSearch()
+    with open("data/movies.json", "rb") as f:
+        documents = json.load(f)["movies"]
+        chunked.load_or_create_chunk_embeddings(documents)
+    results = chunked.search_chunks(query, limit)
+    for idx, result in enumerate(results, start=1):
+        print(f"\n{idx}. {result['title']} (score: {result['score']:.4f})")
+        print(f"    {result['document']} ...")

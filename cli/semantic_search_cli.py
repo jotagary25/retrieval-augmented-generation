@@ -10,6 +10,8 @@ from lib.semantic_search import (
     verify_embeddings,
     verify_model,
     embedding_chunks,
+    load_and_search_chunked,
+    ChunkedSemanticSearch,
 )
 
 
@@ -41,6 +43,9 @@ def main():
     embedChunks_parser = subparsers.add_parser(
         "embed_chunks", help="Embeddding chunks with the semantic model"
     )
+    searchChunked_parser = subparsers.add_parser(
+        "search_chunked", help="Search using the semantic search model with chunks"
+    )
 
     embedText_parser.add_argument("text", type=str, help="Text to embed")
     embedQuery_parser.add_argument("query", type=str, help="Query to embed")
@@ -60,26 +65,23 @@ def main():
     semanticChunk_parser.add_argument(
         "--overlap", type=int, default=0, help="Overlap between chunks"
     )
+    searchChunked_parser.add_argument("query", type=str, help="Query to search")
+    searchChunked_parser.add_argument(
+        "--limit", type=int, default=5, help="Number of results to return"
+    )
 
     args = parser.parse_args()
 
     match args.command:
+        case "search_chunked":
+            load_and_search_chunked(args.query, args.limit)
         case "semantic_chunk":
             text = args.text
             limit = args.max_chunk_size
             overlap = args.overlap
 
-            regex = r"(?<=[.!?])\s+"
-            sentences = re.split(regex, text)
-            chunks = []
-            print(f"Number of sentences: {len(sentences)}")
-            step = limit - overlap
-            for i in range(0, len(sentences), step):
-                # print(f"i: {i}, step: {step}")
-                chunk = " ".join(sentences[i : i + limit])
-                chunks.append(chunk)
-
-            print(f"Semantically chunking {len(text)} characters")
+            chunked = ChunkedSemanticSearch()
+            chunks = chunked._chunk_text(text, limit, overlap)
             for i in range(len(chunks)):
                 print(f"{i + 1}. {chunks[i]}")
 
