@@ -6,7 +6,7 @@ import math
 import json
 
 from utils import stemming
-from inverted_index import InvertedIndex
+from lib.inverted_index import InvertedIndex
 
 cli_dir = os.path.dirname(__file__)
 json_path = os.path.join(cli_dir, "../data/movies.json")
@@ -19,8 +19,10 @@ with open(json_path, "r", encoding="utf-8") as file:
     data = json.load(file)
 movies = data["movies"]
 
+
 def tok(text: str):
     return stemming(text, stopwords_path)
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Keyword Search CLI")
@@ -29,11 +31,19 @@ def main() -> None:
     search_parser = subparsers.add_parser("search", help="Search movies")
     build_parser = subparsers.add_parser("build", help="Build and Cache inverted index")
     tf_parser = subparsers.add_parser("tf", help="show term frequency for a document")
-    idf_parser = subparsers.add_parser("idf", help="show inverse document frequency for a term")
+    idf_parser = subparsers.add_parser(
+        "idf", help="show inverse document frequency for a term"
+    )
     tfidf_parser = subparsers.add_parser("tfidf", help="show TF x IDF for a document")
-    bm25idf_parser = subparsers.add_parser("bm25idf", help="Get BM25 IDF score for a given term")
-    bm25tf_parser = subparsers.add_parser("bm25tf", help="Get BM25 TF score for a given Document ID and term")
-    bm25search_parser = subparsers.add_parser("bm25search", help="Search movies using full BM25 scoring")
+    bm25idf_parser = subparsers.add_parser(
+        "bm25idf", help="Get BM25 IDF score for a given term"
+    )
+    bm25tf_parser = subparsers.add_parser(
+        "bm25tf", help="Get BM25 TF score for a given Document ID and term"
+    )
+    bm25search_parser = subparsers.add_parser(
+        "bm25search", help="Search movies using full BM25 scoring"
+    )
 
     search_parser.add_argument("query", type=str, help="Search query")
     tf_parser.add_argument("doc_id", type=int, help="Document ID")
@@ -44,18 +54,33 @@ def main() -> None:
     bm25idf_parser.add_argument("term", type=str, help="Term to get BM25 IDF score for")
     bm25tf_parser.add_argument("doc_id", type=int, help="Document ID")
     bm25tf_parser.add_argument("term", type=str, help="Term to get BM25 TF score for")
-    bm25tf_parser.add_argument("k1", type=float, nargs='?', default=BM25_K1, help="tunable BM25 k1 parameter")
-    bm25tf_parser.add_argument("b", type=float, nargs='?', default=BM25_B, help="tunable BM25 b parameter")
+    bm25tf_parser.add_argument(
+        "k1", type=float, nargs="?", default=BM25_K1, help="tunable BM25 k1 parameter"
+    )
+    bm25tf_parser.add_argument(
+        "b", type=float, nargs="?", default=BM25_B, help="tunable BM25 b parameter"
+    )
     bm25search_parser.add_argument("query", type=str, help="Search query")
-    bm25search_parser.add_argument("k1", type=int, nargs='?', default=BM25_K1, help="tunable BM25 k parameter")
-    bm25search_parser.add_argument("b", type=float, nargs='?', default=BM25_B, help="tunable BM25 b parameter")
-    bm25search_parser.add_argument("--limit", "-1", type=int, nargs='?', default=5, help="Number of results to return")
+    bm25search_parser.add_argument(
+        "k1", type=int, nargs="?", default=BM25_K1, help="tunable BM25 k parameter"
+    )
+    bm25search_parser.add_argument(
+        "b", type=float, nargs="?", default=BM25_B, help="tunable BM25 b parameter"
+    )
+    bm25search_parser.add_argument(
+        "--limit",
+        "-1",
+        type=int,
+        nargs="?",
+        default=5,
+        help="Number of results to return",
+    )
 
     args = parser.parse_args()
 
     match args.command:
         case "bm25search":
-            idx = InvertedIndex(tokenize_fn = tok)
+            idx = InvertedIndex(tokenize_fn=tok)
             try:
                 idx.load(cache_dir)
             except FileNotFoundError as e:
@@ -73,7 +98,7 @@ def main() -> None:
                 print(f"{i}. {title} (ID: {doc_id}) - {score:.2f}")
 
         case "bm25tf":
-            idx = InvertedIndex(tokenize_fn = tok)
+            idx = InvertedIndex(tokenize_fn=tok)
             try:
                 idx.load(cache_dir)
             except FileNotFoundError as e:
@@ -86,10 +111,12 @@ def main() -> None:
                 print(f"Error: {e}")
                 return
 
-            print(f"BM25 TF score for '{args.term}' in doc '{args.doc_id}': {bm25tf:.2f}")
+            print(
+                f"BM25 TF score for '{args.term}' in doc '{args.doc_id}': {bm25tf:.2f}"
+            )
 
         case "bm25idf":
-            idx = InvertedIndex(tokenize_fn = tok)
+            idx = InvertedIndex(tokenize_fn=tok)
             try:
                 idx.load(cache_dir)
             except FileNotFoundError as e:
@@ -105,7 +132,7 @@ def main() -> None:
             print(f"BM25 IDF score for {args.term}: {bm25idf:.2f}")
 
         case "tfidf":
-            idx = InvertedIndex(tokenize_fn = tok)
+            idx = InvertedIndex(tokenize_fn=tok)
             try:
                 idx.load(cache_dir)
             except FileNotFoundError as e:
@@ -129,14 +156,18 @@ def main() -> None:
             idf = math.log((N + 1) / (DF + 1))
 
             score = tf * idf
-            print(f"TF-IDF score for '{args.term}' in document '{args.doc_id}': {score:.2f}")
+            print(
+                f"TF-IDF score for '{args.term}' in document '{args.doc_id}': {score:.2f}"
+            )
 
         case "idf":
-            idx = InvertedIndex(tokenize_fn = tok)
+            idx = InvertedIndex(tokenize_fn=tok)
             try:
                 idx.load(cache_dir)
             except FileNotFoundError:
-                print("Error: cache not found. Run: uv run cli/keyword_search_cli.py build")
+                print(
+                    "Error: cache not found. Run: uv run cli/keyword_search_cli.py build"
+                )
                 return
 
             tokens = stemming(args.term, stopwords_path)
@@ -155,11 +186,13 @@ def main() -> None:
             print(f"{idf:.2f}")
 
         case "tf":
-            idx = InvertedIndex(tokenize_fn = tok)
+            idx = InvertedIndex(tokenize_fn=tok)
             try:
                 idx.load(cache_dir)
             except FileNotFoundError:
-                print("Error: cache not found. Run: uv run cli/keyword_search_cli.py build")
+                print(
+                    "Error: cache not found. Run: uv run cli/keyword_search_cli.py build"
+                )
                 return
 
             try:
@@ -171,6 +204,7 @@ def main() -> None:
             print(tf)
 
         case "build":
+
             def _tok(text: str):
                 return stemming(text, stopwords_path)
 
@@ -179,11 +213,13 @@ def main() -> None:
             idx.save(cache_dir)
 
         case "search":
-            idx = InvertedIndex(tokenize_fn = tok)
+            idx = InvertedIndex(tokenize_fn=tok)
             try:
                 idx.load(cache_dir)
             except FileNotFoundError:
-                print("Error: no hay indice en cache. Ejecuta uv run cli/keyword_search_cli.py build")
+                print(
+                    "Error: no hay indice en cache. Ejecuta uv run cli/keyword_search_cli.py build"
+                )
                 return
 
             query_tokens = stemming(args.query, stopwords_path)
@@ -208,21 +244,20 @@ def main() -> None:
                     title = idx.docmap[doc_id]["title"]
                     print(f"{i}. {title} (ID: {doc_id})")
 
-#         case "search":
-#             query_text = stemming(args.query, stopwords_path)
-#             results = []
-#
-#             for movie in movies:
-#                 titles = stemming(movie["title"], stopwords_path)
-#                 if any(any(q_token in t_token for t_token in titles) for q_token in query_text):
-#                     results.append(movie["title"])
-#
-#             if results:
-#                 for index, title in enumerate(results, start=1):
-#                     print(f"{index}. {title}")
-#             else:
-#                 print("Result are not found!.")
-
+        #         case "search":
+        #             query_text = stemming(args.query, stopwords_path)
+        #             results = []
+        #
+        #             for movie in movies:
+        #                 titles = stemming(movie["title"], stopwords_path)
+        #                 if any(any(q_token in t_token for t_token in titles) for q_token in query_text):
+        #                     results.append(movie["title"])
+        #
+        #             if results:
+        #                 for index, title in enumerate(results, start=1):
+        #                     print(f"{index}. {title}")
+        #             else:
+        #                 print("Result are not found!.")
 
         case _:
             parser.print_help()

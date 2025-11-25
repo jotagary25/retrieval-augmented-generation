@@ -181,6 +181,7 @@ class ChunkedSemanticSearch(SemanticSearch):
             results.append(
                 {
                     "id": movie_idx,
+                    "movie_id": self.documents[movie_idx]["id"],
                     "title": self.documents[movie_idx]["title"],
                     "document": self.documents[movie_idx]["description"][:100],
                     "score": round(score, 4),
