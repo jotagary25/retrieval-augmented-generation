@@ -1,6 +1,11 @@
 import argparse
 
 from lib.hybrid_search import weighted_search, rrf_search
+from test_gemini import (
+    enhanced_spell_query,
+    enhanced_rewrite_query,
+    enhanced_expand_query,
+)
 
 
 def main():
@@ -32,15 +37,31 @@ def main():
     rrfSearch_parser.add_argument(
         "--limit", type=int, default=5, help="Number of results to return"
     )
+    rrfSearch_parser.add_argument(
+        "--enhanced",
+        type=str,
+        choices=["spell", "rewrite", "expand"],
+        help="Query enhancement method",
+    )
 
     args = parser.parse_args()
 
     match args.command:
         case "rrf-search":
             query = args.query
+            method = args.enhanced
             k = args.k
             limit = args.limit
-            rrf_search(query, k, limit)
+
+            if method == "spell":
+                response = enhanced_spell_query(query)
+            elif method == "rewrite":
+                response = enhanced_rewrite_query(query)
+            elif method == "expand":
+                response = enhanced_expand_query(query)
+
+            print(f"Enhanced query ({method}): '{query}' -> '{response}'\n")
+            rrf_search(response, k, limit)
 
         case "weighted-search":
             query = args.query
