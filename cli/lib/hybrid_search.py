@@ -4,6 +4,7 @@ from utils import stemming
 
 from .inverted_index import InvertedIndex
 from .semantic_search import ChunkedSemanticSearch
+from sentence_transformers import CrossEncoder
 
 current_dir = os.path.dirname(__file__)
 stopwords_path = os.path.join(current_dir, "../../data/stopwords.txt")
@@ -148,3 +149,40 @@ def rrf_search(query, k, limit):
             f"    BM25: {result['keyword_score']:.4f}, Semantic: {result['semantic_score']:.4f}"
         )
         print(f"    {result['description'][:100]}...")
+
+
+def rrf_search_individual(query, k, limit):
+    with open("data/movies.json", "rb") as f:
+        documents = json.load(f)["movies"]
+
+    hybrid = HybridSearch(documents)
+    results = hybrid.rrf_search(query, k, limit)
+
+    return results
+
+
+def rrf_search_rerank(query, k, limit):
+    with open("data/movies.json", "rb") as f:
+        documents = json.load(f)["movies"]
+    hybrid = HybridSearch(documents)
+    results = hybrid.rrf_search(query, k, limit)
+
+    pairs_list = []
+    for result in results:
+        pairs_list.append([query, f"{result['title']} - {result['description']}"])
+
+    cross_encoder = CrossEncoder("cross-encoder/ms-marco-TinyBERT-L2-v2")
+    scores = cross_encoder.predict(pairs_list)
+    for index, result in enumerate(results):
+        result["cs-score"] = scores[index]
+    results.sort(key=lambda result: result["cs-score"], reverse=True)
+
+    return results
+
+    # for idx, result in enumerate(results, start=1):
+    #     print(f"{idx}. {result['title']} - id: {result['id']}")
+    #     print(f"    Cross-Encoder Score: {result['cs-score']:.4f}")
+    #     print(
+    #         f"    BM25 Score: {result['keyword_score']:.4f}, Semantic Score: {result['semantic_score']:.4f}"
+    #     )
+    #     print(f"    {result['description'][:100]}...")
