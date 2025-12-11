@@ -1,6 +1,8 @@
 import os
+
 from dotenv import load_dotenv
 from google import genai
+from google.genai import types
 
 load_dotenv()
 api_key = os.environ.get("GEMINI_API_KEY")
@@ -211,3 +213,22 @@ def question_summarize(question, movies):
         Answer:""",
     )
     return response.text.strip()
+
+
+def generate_multimodal(image, mime, query):
+    parts = [
+        """
+        Given the included image and text query, rewrite the text query to improve search results from a movie database. Make sure to:
+        - Synthesize visual and textual information
+        - Focus on movie-specific details (actors, scenes, style, etc.)
+        - Return only the rewritten query, without any additional commentary
+        """,
+        types.Part.from_bytes(data=image, mime_type=mime),
+        query.strip(),
+    ]
+    response = cliente.models.generate_content(
+        model="gemini-2.5-flash-lite", contents=parts
+    )
+    text = response.text.strip()
+    tokens = response.usage_metadata.total_token_count
+    return text, tokens

@@ -178,11 +178,3 @@ def rrf_search_rerank(query, k, limit):
     results.sort(key=lambda result: result["cs-score"], reverse=True)
 
     return results
-
-    # for idx, result in enumerate(results, start=1):
-    #     print(f"{idx}. {result['title']} - id: {result['id']}")
-    #     print(f"    Cross-Encoder Score: {result['cs-score']:.4f}")
-    #     print(
-    #         f"    BM25 Score: {result['keyword_score']:.4f}, Semantic Score: {result['semantic_score']:.4f}"
-    #     )
-    #     print(f"    {result['description'][:100]}...")
